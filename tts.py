@@ -75,7 +75,7 @@ class CoquiTTSConverter:
         """转换单个文本块"""
         try:
             temp_file = output_file.parent / f"{output_file.stem}_chunk_{chunk_index}{output_file.suffix}"
-            self.tts.tts_to_file(text=text,speaker=xtts_v2_speakers[0], file_path=str(temp_file),language="zh-cn")
+            self.tts.tts_to_file(text=text,speaker=xtts_v2_speakers[29], file_path=str(temp_file),language="zh-cn")
             return temp_file
         except Exception as e:
             self.logger.error(f"Error converting chunk {chunk_index}: {e}")
@@ -156,3 +156,7 @@ def main():
             
 if __name__ == "__main__":
     main()
+
+    # tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to("cuda")
+    # for i in range(len(xtts_v2_speakers)):
+    #     tts.tts_to_file("这是一个声音的测试，让我听听看哪个声音比较好听？",speaker=xtts_v2_speakers[i], file_path=f"test_{i}_{xtts_v2_speakers[i]}.wav",language="zh-cn")
