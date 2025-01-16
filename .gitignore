@@ -5,3 +5,4 @@ audio_output/
 _pycache_
 *.pyc
 *.out
+*.news

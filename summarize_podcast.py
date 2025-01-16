@@ -3,10 +3,22 @@ from crawl4ai import *
 from openai import OpenAI
 import os
 import logging
+import time
 
 # 设置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+timestamp = time.strftime("%Y%m%d", time.localtime())
+
+# create directory
+if not os.path.exists(timestamp):
+    os.makedirs(timestamp)
+
+# create directory
+if not os.path.exists(f"{timestamp}/log"):
+    os.makedirs(f"{timestamp}/log")
 
 
 async def async_search(search_url):
@@ -82,7 +94,7 @@ async def generate_podcast(news_content):
 
 新闻内容: {news_content}""",
         stream=False,
-        temperature=1.5
+        temperature=1.5,
     )
     return podcast
 
@@ -92,7 +104,7 @@ async def summarize_news(news_url, output_file, strip_line, sample_url, sample_u
         # 获取时代杂志首页内容
         content = await async_search(news_url)
 
-        with open(f"{output_file}.origin", "w", encoding='utf-8') as f:
+        with open(f"{timestamp}/log/{output_file}.origin", "w", encoding='utf-8') as f:
             f.write(content)
 
         # 去除首页内容中的无用行
@@ -116,7 +128,7 @@ async def summarize_news(news_url, output_file, strip_line, sample_url, sample_u
 - 请输出逗号分隔的url，不要输出其他内容
                 """,
             stream=True,
-            temperature=0.5
+            temperature=0.5,
         )
 
         news_urls = response.split(",")
@@ -124,6 +136,9 @@ async def summarize_news(news_url, output_file, strip_line, sample_url, sample_u
 
         # 并发获取新闻内容
         news_contents = await fetch_news_content(news_urls)
+        
+        with open(f"{timestamp}/log/{output_file}.news", "w", encoding='utf-8') as f:
+            f.write("\n --- \n".join(news_contents))
 
         # 生成播客内容
         podcasts = []
@@ -131,7 +146,7 @@ async def summarize_news(news_url, output_file, strip_line, sample_url, sample_u
             podcast = await generate_podcast(content)
             podcasts.append(podcast)
 
-        with open(f"{output_file}.podcast", "w", encoding='utf-8') as f:
+        with open(f"{timestamp}/log/{output_file}.podcast", "w", encoding='utf-8') as f:
             f.write("\n --- \n".join(podcasts))
 
         # 总结播客内容
@@ -154,14 +169,15 @@ async def summarize_news(news_url, output_file, strip_line, sample_url, sample_u
 - 不需要说明为什么写成这样
 - 确保所有博客内容都覆盖到，就算不在一条主线内
 - 阿拉伯数字转换为中文数字
+- 今天是{timestamp}，请在文稿中提及
 播客内容如下:
 {''.join(podcasts)}""",
             stream=False,
-            temperature=1.5
+            temperature=1.5,
         )
 
         # 保存播客内容到文件
-        with open(output_file, "w", encoding='utf-8') as f:
+        with open(f"{timestamp}/{output_file}.md", "w", encoding='utf-8') as f:
             f.write(summarize)
             f.write("\n\n")
 
@@ -174,36 +190,52 @@ async def summarize_news(news_url, output_file, strip_line, sample_url, sample_u
 news_dict = [
     [
         "https://nytimes.com",
-        "nytimes.md",
+        "nytimes",
         661,
         "https://times.com/<https:/www.nytimes.com/interactive/2025/01/08/weather/los-angeles-fire-maps-california.html>",
-        "https:/www.nytimes.com/interactive/2025/01/08/weather/los-angeles-fire-maps-california.html",
+        "https://www.nytimes.com/interactive/2025/01/08/weather/los-angeles-fire-maps-california.html",
     ],
     [
         "https://time.com",
-        "time.md",
+        "time",
         80,
         "https://time.com/</7200909/ceo-of-the-year-2024-lisa-su/>",
         "https://time.com/7200909/ceo-of-the-year-2024-lisa-su/",
     ],
     [
         "https://www.economist.com/",
-        "economist.md",
+        "economist",
         88,
         "https://www.economist.com/</united-states/2025/01/09/americas-bet-on-industrial-policy-starts-to-pay-off-for-semiconductors>",
         "https://www.economist.com/united-states/2025/01/09/americas-bet-on-industrial-policy-starts-to-pay-off-for-semiconductors",
+    ],
+    [
+        "https://www.ft.com/",
+        "ft",
+        191,
+        "https://www.ft.com/</content/a973a98d-ba82-41fc-89f9-d34097f44c0b>",
+        "https://www.ft.com/content/a973a98d-ba82-41fc-89f9-d34097f44c0b",
+    ],
+    [
+        "https://www.bbc.com/",
+        "bbc",
+        31,
+        "https://www.bbc.com/</news/articles/c20g7705re3o>",
+        "https://www.bbc.com/news/articles/c20g7705re3o",
     ],
 ]
 
 
 async def test_run():
-    m = await async_search("https://www.economist.com/")
-    with open("economist.md", "w") as f:
+    m = await async_search("https://www.bbc.com/")
+    with open("bbc.md", "w") as f:
         f.write(m)
 
 
 if __name__ == "__main__":
     for task_args in news_dict:
+        st = time.time()
         asyncio.run(summarize_news(*task_args))
+        logger.info(f"任务{task_args[0]}耗时: {time.time()-st:.2f}s")
 
     # a = asyncio.run(test_run())
