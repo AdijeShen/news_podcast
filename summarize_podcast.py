@@ -113,7 +113,7 @@ async def summarize_news(news_url, output_file, strip_line, sample_url, sample_u
         # 从首页内容中提取新闻链接
         response = await async_chat_with_deepseek(
             f"""
-作为一位专业的新闻编辑,请从{news_url}的首页内容中,精选3-7条最值得关注的新闻。选择标准:
+作为一位专业的新闻编辑,请从{news_url}的首页内容中,精选5~10条最值得关注的新闻。选择标准:
 1. 重大社会影响: 政策变化、经济动向、科技突破等
 2. 时效性: 24小时内的重要进展
 3. 深度视角: 独特的分析和见解
@@ -127,7 +127,7 @@ async def summarize_news(news_url, output_file, strip_line, sample_url, sample_u
 
 - 请输出逗号分隔的url，不要输出其他内容
                 """,
-            stream=True,
+            stream=False,
             temperature=0.5,
         )
 
