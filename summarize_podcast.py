@@ -1,9 +1,10 @@
 import asyncio
+import logging
+import os
+import time
+
 from crawl4ai import *
 from openai import OpenAI
-import os
-import logging
-import time
 
 # 设置日志
 logging.basicConfig(level=logging.INFO)
@@ -40,7 +41,7 @@ async def async_chat_with_deepseek(
     temperature=1.00,
 ):
     """与DeepSeek API进行异步对话，支持流式输出"""
-    api_key = api_key or os.environ.get('DEEPSEEK_API_KEY')
+    api_key = api_key or os.environ.get("DEEPSEEK_API_KEY")
     client = OpenAI(api_key=api_key, base_url=base_url)
 
     messages = []
@@ -57,7 +58,7 @@ async def async_chat_with_deepseek(
         for chunk in response:
             if chunk.choices[0].delta.content is not None:
                 content = chunk.choices[0].delta.content
-                print(content, end='', flush=True)
+                print(content, end="", flush=True)
                 full_response += content
         print()  # Final newline
     else:
@@ -99,16 +100,18 @@ async def generate_podcast(news_content):
     return podcast
 
 
-async def summarize_news(news_url, output_file, strip_line, sample_url, sample_url_output):
+async def summarize_news(
+    news_url, output_file, strip_line, sample_url, sample_url_output
+):
     try:
         # 获取时代杂志首页内容
         content = await async_search(news_url)
 
-        with open(f"{timestamp}/log/{output_file}.origin", "w", encoding='utf-8') as f:
+        with open(f"{timestamp}/log/{output_file}.origin", "w", encoding="utf-8") as f:
             f.write(content)
 
         # 去除首页内容中的无用行
-        content = '\n'.join(content.split('\n')[strip_line:])
+        content = "\n".join(content.split("\n")[strip_line:])
 
         # 从首页内容中提取新闻链接
         response = await async_chat_with_deepseek(
@@ -136,8 +139,8 @@ async def summarize_news(news_url, output_file, strip_line, sample_url, sample_u
 
         # 并发获取新闻内容
         news_contents = await fetch_news_content(news_urls)
-        
-        with open(f"{timestamp}/log/{output_file}.news", "w", encoding='utf-8') as f:
+
+        with open(f"{timestamp}/log/{output_file}.news", "w", encoding="utf-8") as f:
             f.write("\n --- \n".join(news_contents))
 
         # 生成播客内容
@@ -146,19 +149,18 @@ async def summarize_news(news_url, output_file, strip_line, sample_url, sample_u
             podcast = await generate_podcast(content)
             podcasts.append(podcast)
 
-        with open(f"{timestamp}/log/{output_file}.podcast", "w", encoding='utf-8') as f:
+        with open(f"{timestamp}/log/{output_file}.podcast", "w", encoding="utf-8") as f:
             f.write("\n --- \n".join(podcasts))
 
         # 总结播客内容
         summarize = await async_chat_with_deepseek(
-            f"""请你将以下几期播客内容,整合为一期15分钟的精品播客。
+            f"""你是主播华杰（你是一位专业的主播、评论人、投资者、咨询师），请你将以下几期播客内容,整合为一期今日大事件的播客。
 
 要求:
-1. 主题串联: 找出内容间的关联,形成清晰主线
-2. 重点突出: 聚焦最具价值的2-3个核心观点
-3. 叙事手法: 采用故事化表达,增强代入感
-4. 语言风格: 专业中带有趣,正式中有温度
-5. 互动设计: 适当设置互动点,增强听众参与感
+1. 内容覆盖: 需要把今天所有事件都讲到
+2. 叙事手法: 采用故事化表达,增强代入感
+3. 语言风格: 专业中带有趣,正式中有温度
+4. 提供观点：在讲述事件的同时，给出自己对于相关事件的看法，可深可浅，让听众能有收获
 
 请输出一个完整的播客文稿,确保:
 - 有清晰的逻辑架构
@@ -177,7 +179,7 @@ async def summarize_news(news_url, output_file, strip_line, sample_url, sample_u
         )
 
         # 保存播客内容到文件
-        with open(f"{timestamp}/{output_file}.md", "w", encoding='utf-8') as f:
+        with open(f"{timestamp}/{output_file}.md", "w", encoding="utf-8") as f:
             f.write(summarize)
             f.write("\n\n")
 

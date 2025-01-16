@@ -1,15 +1,23 @@
-from TTS.api import TTS
-import re
-from pathlib import Path
-import torch
-from typing import List
 import logging
+import os
+import re
 import time
+from pathlib import Path
+from typing import List
+
+import torch
+from TTS.api import TTS
+
+timestamp = time.strftime("%Y%m%d", time.localtime())
+
+# # create directory
+# if not os.path.exists(timestamp):
+#     os.makedirs(timestamp)
 
 xtts_v2_speakers = ['Claribel Dervla', 'Daisy Studious', 'Gracie Wise', 'Tammie Ema', 'Alison Dietlinde', 'Ana Florence', 'Annmarie Nele', 'Asya Anara', 'Brenda Stern', 'Gitta Nikolina', 'Henriette Usha', 'Sofia Hellen', 'Tammy Grit', 'Tanja Adelina', 'Vjollca Johnnie', 'Andrew Chipper', 'Badr Odhiambo', 'Dionisio Schuyler', 'Royston Min', 'Viktor Eka', 'Abrahan Mack', 'Adde Michal', 'Baldur Sanjin', 'Craig Gutsy', 'Damien Black', 'Gilberto Mathias', 'Ilkin Urbano', 'Kazuhiko Atallah', 'Ludvig Milivoj', 'Suad Qasim', 'Torcull Diarmuid', 'Viktor Menelaos', 'Zacharie Aimilios', 'Nova Hogarth', 'Maja Ruoho', 'Uta Obando', 'Lidiya Szekeres', 'Chandra MacFarland', 'Szofi Granger', 'Camilla Holmström', 'Lilya Stainthorpe', 'Zofija Kendrick', 'Narelle Moon', 'Barbora MacLean', 'Alexandra Hisakawa', 'Alma María', 'Rosemary Okafor', 'Ige Behringer', 'Filip Traverse', 'Damjan Chapman', 'Wulf Carlevaro', 'Aaron Dreschner', 'Kumar Dahl', 'Eugenio Mataracı', 'Ferran Simen', 'Xavier Hayasaka', 'Luis Moray', 'Marcos Rudaski']
 
 class CoquiTTSConverter:
-    def __init__(self, model_name="tts_models/multilingual/multi-dataset/xtts_v2", device="cpu"):
+    def __init__(self, model_name="tts_models/multilingual/multi-dataset/xtts_v2", device="cuda"):
         """初始化TTS转换器"""
         # 设置日志
         logging.basicConfig(level=logging.INFO)
@@ -20,7 +28,7 @@ class CoquiTTSConverter:
         self.tts = TTS(model_name).to(device)
         
         # 设置输出目录
-        self.output_dir = Path("audio_output")
+        self.output_dir = Path(timestamp)
         self.output_dir.mkdir(exist_ok=True)
         
         # 设置分块大小(字符数)
@@ -87,12 +95,12 @@ class CoquiTTSConverter:
                 with wave.open(str(input_file), 'rb') as wav:
                     output_wav.writeframes(wav.readframes(wav.getnframes()))
 
-    def convert_markdown_to_speech(self, input_file: str, output_name: str = None):
+    def convert_markdown_to_speech(self, input_file: str):
         """将markdown文件转换为语音"""
         try:
             # 读取输入文件
-            self.logger.info(f"Reading input file: {input_file}")
-            with open(input_file, 'r', encoding='utf-8') as f:
+            self.logger.info(f"Reading input file: {timestamp}/{input_file}")
+            with open(f"{timestamp}/{input_file}.md", 'r', encoding='utf-8') as f:
                 text = f.read()
             
             # 预处理文本
@@ -100,8 +108,7 @@ class CoquiTTSConverter:
             self.logger.info(f"Split text into {len(chunks)} chunks")
             
             # 设置输出文件
-            output_name = output_name or Path(input_file).stem
-            output_file = self.output_dir / f"{output_name}.wav"
+            output_file = self.output_dir / f"{input_file}.wav"
             
             # 转换每个文本块
             chunk_files = []
@@ -137,16 +144,12 @@ def main():
     converter = CoquiTTSConverter()
     
     # 转换文件列表
-    files = [
-        ("economist.md", "economist"),
-        ("time.md", "time"),
-        ("nytimes.md", "nytimes")
-    ]
+    files = ["nytimes", "time","economist",  "ft", "bbc"]
     
-    for markdown_file, output_name in files:
-        if Path(markdown_file).exists():
+    for markdown_file in files:
+        if Path(f"{timestamp}/{markdown_file}.md").exists():
             print(f"\nProcessing {markdown_file}...")
-            converter.convert_markdown_to_speech(markdown_file, output_name)
+            converter.convert_markdown_to_speech(markdown_file)
         else:
             print(f"File not found: {markdown_file}")
             
