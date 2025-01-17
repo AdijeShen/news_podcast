@@ -24,7 +24,9 @@ if not os.path.exists(f"{timestamp}/log"):
 
 async def async_search(search_url):
     """异步爬取网页内容并返回Markdown格式"""
-    config = CrawlerRunConfig(cache_mode=CacheMode.DISABLED)
+    config = CrawlerRunConfig(
+        cache_mode=CacheMode.DISABLED, simulate_user=True, override_navigator=True, magic=True  # 自动处理弹窗
+    )
 
     async with AsyncWebCrawler() as crawler:
         result = await crawler.arun(url=search_url, config=config)
@@ -137,9 +139,7 @@ async def generate_podcast(news_content):
     return podcast
 
 
-async def summarize_news(
-    news_url, output_file, strip_line, sample_url, sample_url_output
-):
+async def summarize_news(news_url, output_file, strip_line, sample_url, sample_url_output):
     try:
         # 获取时代杂志首页内容
         content = await async_search(news_url)
@@ -176,7 +176,7 @@ async def summarize_news(
 
         # 并发获取新闻内容
         news_contents = await fetch_news_content(news_urls)
-        
+
         with open(f"{timestamp}/log/{output_file}.news", "w", encoding='utf-8') as f:
             f.write("\n --- \n".join(news_contents))
 
@@ -267,8 +267,8 @@ news_dict = [
 
 
 async def test_run():
-    m = await async_search("https://www.bbc.com/")
-    with open("bbc.md", "w") as f:
+    m = await async_search("https://www.bbc.com")
+    with open("try.md", "w") as f:
         f.write(m)
 
 
