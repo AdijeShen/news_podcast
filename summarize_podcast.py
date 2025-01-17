@@ -112,7 +112,9 @@ async def fetch_news_content(news_urls):
     return await asyncio.gather(*tasks)
 
 
-async def generate_podcast(news_content):
+async def generate_podcast(news_content: str):
+    if news_content.strip() == "":
+        return "无内容，跳过"
     """生成播客内容"""
     podcast = await async_chat_with_deepseek(
         f"""请你扮演一位专业的科技财经播客主播,为以下新闻内容制作一期简短但富有洞见的播客分享。
@@ -132,7 +134,8 @@ async def generate_podcast(news_content):
 
 总字数控制在500字以内。请直接输出播客文稿,无需标注结构。
 
-新闻内容: {news_content}""",
+英文原始新闻内容: [{news_content}]
+请注意，如果英文原始新闻内容[]中是空的，请你输出"无内容，跳过" """,
         stream=False,
         temperature=1.5,
     )
