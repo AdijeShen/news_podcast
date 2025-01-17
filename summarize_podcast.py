@@ -39,6 +39,8 @@ async def async_chat_with_deepseek(
     base_url="https://api.deepseek.com",
     stream=False,
     temperature=1.00,
+    max_retries=3,
+    current_retry=0,
 ):
     """与DeepSeek API进行异步对话，支持流式输出"""
     api_key = api_key or os.environ.get("DEEPSEEK_API_KEY")
@@ -49,22 +51,57 @@ async def async_chat_with_deepseek(
         messages.append({"role": "system", "content": system_message})
     messages.append({"role": "user", "content": prompt})
 
-    response = client.chat.completions.create(
-        model=model, messages=messages, stream=stream, temperature=temperature
-    )
-    full_response = ""
+    try:
+        response = client.chat.completions.create(
+            model=model, messages=messages, stream=stream, temperature=temperature
+        )
+        full_response = ""
 
-    if stream:
-        for chunk in response:
-            if chunk.choices[0].delta.content is not None:
-                content = chunk.choices[0].delta.content
-                print(content, end="", flush=True)
-                full_response += content
-        print()  # Final newline
-    else:
-        full_response = response.choices[0].message.content
+        if stream:
+            for chunk in response:
+                if chunk.choices[0].delta.content is not None:
+                    content = chunk.choices[0].delta.content
+                    print(content, end='', flush=True)
+                    full_response += content
+            print()  # Final newline
+        else:
+            full_response = response.choices[0].message.content
 
-    return full_response
+        # 如果响应为空且未超过最大重试次数，则重试
+        if not full_response and current_retry < max_retries:
+            print(f"Received empty response, retrying... (Attempt {current_retry + 1}/{max_retries})")
+            return await async_chat_with_deepseek(
+                prompt,
+                system_message,
+                model,
+                api_key,
+                base_url,
+                stream,
+                temperature,
+                max_retries,
+                current_retry + 1,
+            )
+        elif not full_response and current_retry >= max_retries:
+            raise Exception(f"Failed to get response after {max_retries} attempts")
+
+        return full_response
+
+    except Exception as e:
+        if current_retry < max_retries:
+            print(f"Error occurred: {str(e)}, retrying... (Attempt {current_retry + 1}/{max_retries})")
+            return await async_chat_with_deepseek(
+                prompt,
+                system_message,
+                model,
+                api_key,
+                base_url,
+                stream,
+                temperature,
+                max_retries,
+                current_retry + 1,
+            )
+        else:
+            raise Exception(f"Failed after {max_retries} attempts. Last error: {str(e)}")
 
 
 async def fetch_news_content(news_urls):
@@ -139,8 +176,8 @@ async def summarize_news(
 
         # 并发获取新闻内容
         news_contents = await fetch_news_content(news_urls)
-
-        with open(f"{timestamp}/log/{output_file}.news", "w", encoding="utf-8") as f:
+        
+        with open(f"{timestamp}/log/{output_file}.news", "w", encoding='utf-8') as f:
             f.write("\n --- \n".join(news_contents))
 
         # 生成播客内容
