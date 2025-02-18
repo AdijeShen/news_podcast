@@ -1,4 +1,5 @@
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import logging
 import os
 import time
@@ -41,7 +42,7 @@ async def async_search(search_url):
         return result.markdown
 
 
-async def async_chat_with_deepseek(
+def chat_with_deepseek(
     prompt,
     system_message=None,
     model=MODEL,
@@ -77,7 +78,7 @@ async def async_chat_with_deepseek(
         # 如果响应为空且未超过最大重试次数，则重试
         if not full_response and current_retry < max_retries:
             print(f"Received empty response, retrying... (Attempt {current_retry + 1}/{max_retries})")
-            return await async_chat_with_deepseek(
+            return chat_with_deepseek(
                 prompt,
                 system_message,
                 model,
@@ -95,7 +96,7 @@ async def async_chat_with_deepseek(
     except Exception as e:
         if current_retry < max_retries:
             print(f"Error occurred: {str(e)}, retrying... (Attempt {current_retry + 1}/{max_retries})")
-            return await async_chat_with_deepseek(
+            return chat_with_deepseek(
                 prompt,
                 system_message,
                 model,
@@ -117,7 +118,8 @@ async def fetch_news_content(news_urls):
     return list(zip(results, news_urls))
 
 
-async def generate_podcast(news_content: str, source_url: str):
+def generate_podcast(news_content: str, source_url: str):
+    st = time.time()
     if news_content is None or news_content.strip() == "":
         return "无内容，跳过"
 
@@ -144,11 +146,12 @@ async def generate_podcast(news_content: str, source_url: str):
 
 字数建议不超过500字。
     """
-
-    podcast = await async_chat_with_deepseek(
+    logger.info(f"开始生成{source_url}播客")
+    podcast = chat_with_deepseek(
         prompt=prompt,
         stream=False,
     )
+    logger.info(f"生成{source_url}播客耗时: {time.time()-st:.2f}s")
     return podcast
 
 
@@ -181,7 +184,7 @@ async def summarize_news(news_task: NewsTask):
         content = "\n".join(content.split("\n")[strip_line_header:-strip_line_bottom])
 
         # 从首页内容中提取新闻链接
-        response = await async_chat_with_deepseek(
+        response = chat_with_deepseek(
             f"""
 作为一位专业的新闻编辑,请从{news_url}的首页内容中,精选5~10条最值得关注的新闻。选择标准:
 1. 重大社会影响: 政策变化、经济动向、科技突破等
@@ -207,16 +210,26 @@ async def summarize_news(news_task: NewsTask):
         # 并发获取新闻内容: [(content, url), (content, url), ...]
         fetched_data = await fetch_news_content(news_urls)
 
-        # 生成并存储每条播客
-        podcasts = []
+        # 生成并存储每条播客：并行执行 generate_podcast
+        thread_pool = ThreadPoolExecutor(max_workers=10)
+        
+        podcast_tasks = []
         for single_content, single_url in fetched_data:
-            # 保存原文日志
+            # 这里进行必要的预处理
             single_content = "\n".join(single_content.split("\n")[strip_line_header:-strip_line_bottom])
+            
+            podcast_tasks.append(thread_pool.submit(generate_podcast, single_content, single_url))
 
-            # 调用 generate_podcast 时传入 URL
-            podcast_text = await generate_podcast(single_content, single_url)
-            podcasts.append((podcast_text, single_url))
 
+        # 并发执行所有generate_podcast
+        podcasts_result = [task.result() for task in podcast_tasks]
+        
+
+        # 将执行结果与对应URL组装起来
+        podcasts = []
+        for i, (single_content, single_url) in enumerate(fetched_data):
+            podcasts.append((podcasts_result[i], single_url))
+            
         # 记录所有播客文本
         with open(f"{timestamp}/log/{output_file}.podcast", "w", encoding="utf-8") as f:
             # 把每条 podcast + url 写下来，方便调试
@@ -240,7 +253,7 @@ async def summarize_news(news_task: NewsTask):
 (请输出一个整合后的口播文稿，保持逻辑连贯，覆盖所有事件，不要遗漏链接信息。)
         """
 
-        summarize = await async_chat_with_deepseek(
+        summarize = chat_with_deepseek(
             aggregator_prompt,
             stream=False,
         )
@@ -258,7 +271,7 @@ async def summarize_news(news_task: NewsTask):
 
 async def test_run():
     m = await async_search(
-        "https://time.com/7225374/do-you-need-to-worry-about-asteroid-2024-yr4-hitting-earth"
+        ""
     )
     with open("try.md", "w") as f:
         f.write(m)
