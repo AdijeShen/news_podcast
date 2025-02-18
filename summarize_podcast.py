@@ -2,9 +2,17 @@ import asyncio
 import logging
 import os
 import time
+import yaml
+from dataclasses import dataclass
+from typing import List
 
 from crawl4ai import *
 from openai import OpenAI
+
+MODEL = "ep-20250208184831-9p2c6"  # deepseek-v3
+# MODEL = "ep-20250208150109-xl7b5" # deepseek-r1
+API_KEY = os.environ.get("ARK_API_KEY")
+BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
 
 # 设置日志
 logging.basicConfig(level=logging.INFO)
@@ -36,11 +44,10 @@ async def async_search(search_url):
 async def async_chat_with_deepseek(
     prompt,
     system_message=None,
-    model="deepseek-chat",
-    api_key=None,
-    base_url="https://api.deepseek.com",
+    model=MODEL,
+    api_key=API_KEY,
+    base_url=BASE_URL,
     stream=False,
-    temperature=1.00,
     max_retries=3,
     current_retry=0,
 ):
@@ -54,9 +61,7 @@ async def async_chat_with_deepseek(
     messages.append({"role": "user", "content": prompt})
 
     try:
-        response = client.chat.completions.create(
-            model=model, messages=messages, stream=stream, temperature=temperature
-        )
+        response = client.chat.completions.create(model=model, messages=messages, stream=stream)
         full_response = ""
 
         if stream:
@@ -79,7 +84,6 @@ async def async_chat_with_deepseek(
                 api_key,
                 base_url,
                 stream,
-                temperature,
                 max_retries,
                 current_retry + 1,
             )
@@ -98,7 +102,6 @@ async def async_chat_with_deepseek(
                 api_key,
                 base_url,
                 stream,
-                temperature,
                 max_retries,
                 current_retry + 1,
             )
@@ -107,43 +110,67 @@ async def async_chat_with_deepseek(
 
 
 async def fetch_news_content(news_urls):
-    """并发获取多个新闻内容"""
+    """并发获取多个新闻内容，同时保留对应链接"""
     tasks = [async_search(url.strip()) for url in news_urls]
-    return await asyncio.gather(*tasks)
+    results = await asyncio.gather(*tasks)
+    # 返回一个列表，每个元素是 (markdown文本, 对应的url)
+    return list(zip(results, news_urls))
 
 
-async def generate_podcast(news_content: str):
-    if news_content.strip() == "":
+async def generate_podcast(news_content: str, source_url: str):
+    if news_content is None or news_content.strip() == "":
         return "无内容，跳过"
-    """生成播客内容"""
-    podcast = await async_chat_with_deepseek(
-        f"""请你扮演一位专业的科技财经播客主播,为以下新闻内容制作一期简短但富有洞见的播客分享。
 
-目标受众: 关注科技创新、投资趋势的年轻专业人士
+    prompt = f"""
+请你扮演一位专业的新闻播客主播,为以下新闻内容制作一期简短但富有洞见的播客分享。
+
+目标受众: 关注科技创新、国际局势的年轻专业人士
 风格要求:
 - 语气亲和但专业
 - 观点鲜明有深度
-- 结合实际案例
-- 提供行动建议
+- （如果涉及一些非常识的内容）请提供一些背景知识
 
-内容结构:
-1. 开场铺陈(1-2句)
-2. 新闻主体内容(5-10句)
-2. 核心观点(2-3点)
-3. 实践启示(1~3点)
+新闻来源: {source_url}
 
-总字数控制在500字以内。请直接输出播客文稿,无需标注结构。
+英文原始新闻内容:
+[{news_content}]
 
-英文原始新闻内容: [{news_content}]
-请注意，如果英文原始新闻内容[]中是空的，请你输出"无内容，跳过" """,
+请输出一段播客文稿(中文), 需要在文稿里面显式提到“本新闻来自: {source_url}”字样。
+文稿结构要求：
+- (1) 新闻主体
+- (2) （可选）必要知识
+- (3) 核心观点
+- (4) （可选）实践启示
+
+字数建议不超过500字。
+    """
+
+    podcast = await async_chat_with_deepseek(
+        prompt=prompt,
         stream=False,
-        temperature=1.5,
     )
     return podcast
 
 
-async def summarize_news(news_url, output_file, strip_line, sample_url, sample_url_output):
+@dataclass
+class NewsTask:
+    url: str
+    output_file: str
+    strip_line_header: int
+    strip_line_bottom: int
+    sample_url: str
+    sample_url_output: str
+
+
+async def summarize_news(news_task: NewsTask):
+
     try:
+        news_url = news_task.url
+        output_file = news_task.output_file
+        strip_line_header = news_task.strip_line_header
+        strip_line_bottom = news_task.strip_line_bottom
+        sample_url = news_task.sample_url
+        sample_url_output = news_task.sample_url_output
         # 获取时代杂志首页内容
         content = await async_search(news_url)
 
@@ -151,7 +178,7 @@ async def summarize_news(news_url, output_file, strip_line, sample_url, sample_u
             f.write(content)
 
         # 去除首页内容中的无用行
-        content = "\n".join(content.split("\n")[strip_line:])
+        content = "\n".join(content.split("\n")[strip_line_header:-strip_line_bottom])
 
         # 从首页内容中提取新闻链接
         response = await async_chat_with_deepseek(
@@ -171,55 +198,54 @@ async def summarize_news(news_url, output_file, strip_line, sample_url, sample_u
 - 请输出逗号分隔的url，不要输出其他内容
                 """,
             stream=False,
-            temperature=0.5,
         )
 
         news_urls = response.split(",")
         logger.info(f"提取到的新闻链接: {news_urls}")
 
         # 并发获取新闻内容
-        news_contents = await fetch_news_content(news_urls)
+        # 并发获取新闻内容: [(content, url), (content, url), ...]
+        fetched_data = await fetch_news_content(news_urls)
 
-        with open(f"{timestamp}/log/{output_file}.news", "w", encoding='utf-8') as f:
-            f.write("\n --- \n".join(news_contents))
-
-        # 生成播客内容
+        # 生成并存储每条播客
         podcasts = []
-        for content in news_contents:
-            podcast = await generate_podcast(content)
-            podcasts.append(podcast)
+        for single_content, single_url in fetched_data:
+            # 保存原文日志
+            single_content = "\n".join(single_content.split("\n")[strip_line_header:-strip_line_bottom])
 
+            # 调用 generate_podcast 时传入 URL
+            podcast_text = await generate_podcast(single_content, single_url)
+            podcasts.append((podcast_text, single_url))
+
+        # 记录所有播客文本
         with open(f"{timestamp}/log/{output_file}.podcast", "w", encoding="utf-8") as f:
-            f.write("\n --- \n".join(podcasts))
+            # 把每条 podcast + url 写下来，方便调试
+            for ptext, purl in podcasts:
+                f.write(f"=== 来源: {purl}\n{ptext}\n\n---\n\n")
 
-        # 总结播客内容
+        # 整合播客内容（依然可以给大模型一个综合 prompt）
+        # 如果你想在最终的汇总里也带上链接，可以手动拼接
+        aggregator_prompt = f"""
+你是主播华杰，请将以下几期播客内容整合为一期今日大事件播客。
+
+今天是{timestamp}，请在文稿中提及。
+请一并保留来源链接信息（如播客文本中已有提及，或重新以“来源: 某某链接”形式挂在该新闻后）。
+
+以下是多条播客文本和来源链接:
+"""
+        for idx, (ptext, purl) in enumerate(podcasts, start=1):
+            aggregator_prompt += f"\n【播客{idx}】(来源: {purl})\n{ptext}\n"
+
+        aggregator_prompt += """
+(请输出一个整合后的口播文稿，保持逻辑连贯，覆盖所有事件，不要遗漏链接信息。)
+        """
+
         summarize = await async_chat_with_deepseek(
-            f"""你是主播华杰（你是一位专业的主播、评论人、投资者、咨询师），请你将以下几期播客内容,整合为一期今日大事件的播客。
-
-要求:
-1. 内容覆盖: 需要把今天所有事件都讲到
-2. 叙事手法: 采用故事化表达,增强代入感
-3. 语言风格: 专业中带有趣,正式中有温度
-4. 提供观点：在讲述事件的同时，给出自己对于相关事件的看法，可深可浅，让听众能有收获
-5. 逻辑清晰：将内容按照自己喜欢的方式串联起来
-
-请输出一个完整的播客文稿,确保:
-- 有清晰的逻辑架构
-- 适合口播表达
-- 富有感染力
-- 能激发思考
-- 只需要输出文字，不需要markdown格式
-- 不需要说明为什么写成这样
-- 确保所有博客内容都覆盖到，就算不在一条主线内
-- 阿拉伯数字转换为中文数字
-- 今天是{timestamp}，请在文稿中提及
-播客内容如下:
-{''.join(podcasts)}""",
+            aggregator_prompt,
             stream=False,
-            temperature=1.5,
         )
 
-        # 保存播客内容到文件
+        # 保存最终汇总播客
         with open(f"{timestamp}/{output_file}.md", "w", encoding="utf-8") as f:
             f.write(summarize)
             f.write("\n\n")
@@ -230,55 +256,34 @@ async def summarize_news(news_url, output_file, strip_line, sample_url, sample_u
         logger.error(f"程序运行出错: {e}")
 
 
-news_dict = [
-    [
-        "https://nytimes.com",
-        "nytimes",
-        661,
-        "https://times.com/<https:/www.nytimes.com/interactive/2025/01/08/weather/los-angeles-fire-maps-california.html>",
-        "https://www.nytimes.com/interactive/2025/01/08/weather/los-angeles-fire-maps-california.html",
-    ],
-    [
-        "https://time.com",
-        "time",
-        80,
-        "https://time.com/</7200909/ceo-of-the-year-2024-lisa-su/>",
-        "https://time.com/7200909/ceo-of-the-year-2024-lisa-su/",
-    ],
-    [
-        "https://www.economist.com/",
-        "economist",
-        88,
-        "https://www.economist.com/</united-states/2025/01/09/americas-bet-on-industrial-policy-starts-to-pay-off-for-semiconductors>",
-        "https://www.economist.com/united-states/2025/01/09/americas-bet-on-industrial-policy-starts-to-pay-off-for-semiconductors",
-    ],
-    [
-        "https://www.ft.com/",
-        "ft",
-        191,
-        "https://www.ft.com/</content/a973a98d-ba82-41fc-89f9-d34097f44c0b>",
-        "https://www.ft.com/content/a973a98d-ba82-41fc-89f9-d34097f44c0b",
-    ],
-    [
-        "https://www.bbc.com/",
-        "bbc",
-        31,
-        "https://www.bbc.com/</news/articles/c20g7705re3o>",
-        "https://www.bbc.com/news/articles/c20g7705re3o",
-    ],
-]
-
-
 async def test_run():
-    m = await async_search("https://www.bbc.com")
+    m = await async_search(
+        "https://time.com/7225374/do-you-need-to-worry-about-asteroid-2024-yr4-hitting-earth"
+    )
     with open("try.md", "w") as f:
         f.write(m)
 
 
-if __name__ == "__main__":
-    for task_args in news_dict:
-        st = time.time()
-        asyncio.run(summarize_news(*task_args))
-        logger.info(f"任务{task_args[0]}耗时: {time.time()-st:.2f}s")
+def load_config(config_path: str) -> List[NewsTask]:
+    """
+    从给定的 config_path 读取配置文件，并返回一个包含 NewsTask 的列表
+    """
+    with open(config_path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
 
+    # data 应该是一个 dict，比如 {"news_dict": [ {...}, {...}, ... ]}
+    news_list = data.get("news_dict", [])
+    # 利用解包将 dict -> dataclass
+    return [NewsTask(**item) for item in news_list]
+
+
+if __name__ == "__main__":
     # a = asyncio.run(test_run())
+
+    tasks = load_config("config.yaml")
+
+    # 现在 tasks 就是一个 [NewsTask, NewsTask, ...] 的列表
+    for t in tasks:
+        st = time.time()
+        asyncio.run(summarize_news(t))
+        logger.info(f"\n任务{t.output_file}耗时: {time.time()-st:.2f}s")

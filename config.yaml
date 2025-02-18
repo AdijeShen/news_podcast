@@ -1,0 +1,34 @@
+news_dict:
+  # - url: "https://nytimes.com"
+  #   output_file: "nytimes"
+  #   strip_line_header: 661
+  #   sample_url: "https://times.com/<https:/www.nytimes.com/interactive/2025/01/08/weather/los-angeles-fire-maps-california.html>"
+  #   sample_url_output: "https://www.nytimes.com/interactive/2025/01/08/weather/los-angeles-fire-maps-california.html"
+
+  - url: "https://time.com"
+    output_file: "time"
+    strip_line_header: 80
+    strip_line_bottom: 64
+    sample_url: "https://time.com/</7200909/ceo-of-the-year-2024-lisa-su/>"
+    sample_url_output: "https://time.com/7200909/ceo-of-the-year-2024-lisa-su/"
+
+  - url: "https://www.economist.com/"
+    output_file: "economist"
+    strip_line_header: 131
+    strip_line_bottom: 55
+    sample_url: "https://www.economist.com/</united-states/2025/01/09/americas-bet-on-industrial-policy-starts-to-pay-off-for-semiconductors>"
+    sample_url_output: "https://www.economist.com/united-states/2025/01/09/americas-bet-on-industrial-policy-starts-to-pay-off-for-semiconductors"
+
+  - url: "https://www.ft.com/"
+    output_file: "ft"
+    strip_line_header: 191
+    strip_line_bottom: 161
+    sample_url: "https://www.ft.com/</content/a973a98d-ba82-41fc-89f9-d34097f44c0b>"
+    sample_url_output: "https://www.ft.com/content/a973a98d-ba82-41fc-89f9-d34097f44c0b"
+
+  - url: "https://www.bbc.com/"
+    output_file: "bbc"
+    strip_line_header: 31
+    strip_line_bottom: 31
+    sample_url: "https://www.bbc.com/</news/articles/c20g7705re3o>"
+    sample_url_output: "https://www.bbc.com/news/articles/c20g7705re3o"
