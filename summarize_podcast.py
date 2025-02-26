@@ -31,11 +31,13 @@ if not os.path.exists(f"{timestamp}/log"):
     os.makedirs(f"{timestamp}/log")
 
 
-async def async_search(search_url):
+async def async_search(search_url, bypass_paywall=False):
     """异步爬取网页内容并返回Markdown格式"""
     config = CrawlerRunConfig(
         cache_mode=CacheMode.DISABLED, simulate_user=True, override_navigator=True, magic=True  # 自动处理弹窗
     )
+    if bypass_paywall:
+        search_url = f"https://archive.ph/newest/{search_url}"
 
     async with AsyncWebCrawler() as crawler:
         result = await crawler.arun(url=search_url, config=config)
@@ -124,27 +126,32 @@ def generate_podcast(news_content: str, source_url: str):
         return "无内容，跳过"
 
     prompt = f"""
-请你扮演一位专业的新闻播客主播,为以下新闻内容制作一期简短但富有洞见的播客分享。
+请你扮演一位专业的公众号写手,为以下新闻内容制作一期简短但富有洞见的公众号分享。
 
-目标受众: 关注科技创新、国际局势的年轻专业人士
+目标受众: 关注科技创新、国际局势的年轻人
 风格要求:
-- 语气亲和但专业
-- 观点鲜明有深度
+- 语气亲且口语化，就像在和观众聊天
+- 观点鲜明有深度，知识要专业，但不要晦涩
 - （如果涉及一些非常识的内容）请提供一些背景知识
+- 你是一个爱国的中国人，不要带有别国的政治倾向
 
 新闻来源: {source_url}
 
 英文原始新闻内容:
 [{news_content}]
 
-请输出一段播客文稿(中文), 需要在文稿里面显式提到“本新闻来自: {source_url}”字样。
+请输出一段公众号文稿(中文)，包含以下内容
 文稿结构要求：
+- 请你为这段内容起一个吸引人的标题
 - (1) 新闻主体
 - (2) （可选）必要知识
 - (3) 核心观点
-- (4) （可选）实践启示
+- (4) （可选）启示
 
-字数建议不超过500字。
+- 文稿只需要分段，不需要段落标题。
+- 启示应该从个人的角度提，如果没有，那可以不写。
+- 你的文稿的承接应该自然，不要说"核心观点是"这样的铺陈，直接展开即可。
+- 文稿字数不超过500字。
     """
     logger.info(f"开始生成{source_url}播客")
     podcast = chat_with_deepseek(
@@ -174,7 +181,7 @@ async def summarize_news(news_task: NewsTask):
         strip_line_bottom = news_task.strip_line_bottom
         sample_url = news_task.sample_url
         sample_url_output = news_task.sample_url_output
-        # 获取时代杂志首页内容
+        # 获取杂志首页内容
         content = await async_search(news_url)
 
         with open(f"{timestamp}/log/{output_file}.origin", "w", encoding="utf-8") as f:
@@ -210,26 +217,29 @@ async def summarize_news(news_task: NewsTask):
         # 并发获取新闻内容: [(content, url), (content, url), ...]
         fetched_data = await fetch_news_content(news_urls)
 
+        with open(f"{timestamp}/log/{output_file}.news", "w", encoding="utf-8") as f:
+            # 把每条新闻 + url 写下来，方便调试
+            for ntext, nurl in fetched_data:
+                f.write(f"=== 来源: {nurl}\n{ntext}\n\n---\n\n")
+
         # 生成并存储每条播客：并行执行 generate_podcast
         thread_pool = ThreadPoolExecutor(max_workers=10)
-        
+
         podcast_tasks = []
         for single_content, single_url in fetched_data:
             # 这里进行必要的预处理
             single_content = "\n".join(single_content.split("\n")[strip_line_header:-strip_line_bottom])
-            
-            podcast_tasks.append(thread_pool.submit(generate_podcast, single_content, single_url))
 
+            podcast_tasks.append(thread_pool.submit(generate_podcast, single_content, single_url))
 
         # 并发执行所有generate_podcast
         podcasts_result = [task.result() for task in podcast_tasks]
-        
 
         # 将执行结果与对应URL组装起来
         podcasts = []
         for i, (single_content, single_url) in enumerate(fetched_data):
             podcasts.append((podcasts_result[i], single_url))
-            
+
         # 记录所有播客文本
         with open(f"{timestamp}/log/{output_file}.podcast", "w", encoding="utf-8") as f:
             # 把每条 podcast + url 写下来，方便调试
@@ -239,18 +249,19 @@ async def summarize_news(news_task: NewsTask):
         # 整合播客内容（依然可以给大模型一个综合 prompt）
         # 如果你想在最终的汇总里也带上链接，可以手动拼接
         aggregator_prompt = f"""
-你是主播华杰，请将以下几期播客内容整合为一期今日大事件播客。
+你是编辑百晓生，请将以下几期公众号内容整合为一期公众号内容。
 
 今天是{timestamp}，请在文稿中提及。
-请一并保留来源链接信息（如播客文本中已有提及，或重新以“来源: 某某链接”形式挂在该新闻后）。
+请一并保留来源链接信息（如文本中已有提及，或重新以“来源: 某某链接”形式挂在该新闻后）。
 
-以下是多条播客文本和来源链接:
+以下是多条公众号文本和来源链接:
 """
         for idx, (ptext, purl) in enumerate(podcasts, start=1):
             aggregator_prompt += f"\n【播客{idx}】(来源: {purl})\n{ptext}\n"
 
         aggregator_prompt += """
-(请输出一个整合后的口播文稿，保持逻辑连贯，覆盖所有事件，不要遗漏链接信息。)
+(请输出一个整合后的公众号文稿，保持逻辑连贯，语气亲切口语化，覆盖所有事件，不要遗漏链接信息。并为这个公众号想一个吸引人的大标题)
+请发挥想象，另外描述这期公众号的封面可以是什么样的。
         """
 
         summarize = chat_with_deepseek(
@@ -270,9 +281,9 @@ async def summarize_news(news_task: NewsTask):
 
 
 async def test_run():
-    m = await async_search(
-        ""
-    )
+    m = await async_search("https://www.wsj.com")
+    # m = await async_search("https://nytimes.com")
+
     with open("try.md", "w") as f:
         f.write(m)
 
