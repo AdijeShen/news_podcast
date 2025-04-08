@@ -17,6 +17,7 @@ from src.news_podcast.utils.news_processor import (
     generate_podcast
 )
 from src.news_podcast.api.llm_client import chat_with_deepseek
+from src.news_podcast.wechat_publisher import process_daily_news
 
 # 设置日志
 logger = logging.getLogger(__name__)
@@ -222,6 +223,19 @@ async def integrate_all_podcasts(tasks: List[NewsTask], timestamp: str) -> bool:
             f.write("\n\n")
 
         logger.info(f"全球科技日报已保存到 global_tech_daily_{timestamp}.md")
+        
+        # 发布到微信公众号
+        try:
+            logger.info("开始将全球科技日报发布到微信公众号...")
+            media_id = process_daily_news(timestamp, auto_publish=False)
+            if media_id:
+                logger.info(f"成功将全球科技日报发布到微信公众号，草稿ID: {media_id}")
+            else:
+                logger.warning("发布到微信公众号失败，但不影响其他流程")
+        except Exception as wx_error:
+            logger.error(f"发布到微信公众号时发生错误: {wx_error}", exc_info=True)
+            logger.warning("微信发布失败，但不影响全球科技日报的生成")
+        
         return True
     except Exception as e:
         logger.error(f"整合分析内容时出错: {e}", exc_info=True)

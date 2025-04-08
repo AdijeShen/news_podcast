@@ -1,146 +1,129 @@
 # 新闻播客生成器
 
-这个项目是一个自动化工具，用于从多个新闻源爬取新闻内容，进行分析和总结，最终生成一份全球科技日报。
+这个项目是一个自动化新闻采集、分析和发布系统，可以收集各种科技新闻源的内容，使用大语言模型进行分析和整合，生成全球科技日报，并支持发布到微信公众号。
 
-## 项目结构
+## 主要功能
 
-```
-news_podcast/
-├── src/
-│   └── news_podcast/
-│       ├── api/               # API相关模块
-│       │   ├── __init__.py
-│       │   └── llm_client.py  # 大语言模型客户端
-│       ├── crawlers/          # 爬虫相关模块
-│       │   ├── __init__.py
-│       │   └── web_crawler.py # 网页爬虫
-│       ├── models/            # 数据模型
-│       │   ├── __init__.py
-│       │   └── news_task.py   # 新闻任务模型
-│       ├── utils/             # 工具模块
-│       │   ├── __init__.py
-│       │   ├── config_manager.py # 配置管理
-│       │   ├── logger.py      # 日志工具
-│       │   └── news_processor.py # 新闻处理
-│       ├── __init__.py
-│       ├── main.py            # 主程序入口
-│       └── podcast_creator.py # 播客生成逻辑
-├── tests/                     # 测试目录
-│   ├── __init__.py
-│   ├── conftest.py            # pytest配置
-│   └── test_crawler.py        # 爬虫测试
-├── .env                       # 环境变量配置
-├── .env.example               # 环境变量示例
-├── README.md                  # 项目说明
-├── requirements.txt           # 依赖列表
-├── run_podcast.py             # 运行脚本
-├── run_test.py                # 测试运行脚本
-├── pytest.ini                 # pytest配置
-└── sources.yaml               # 新闻源配置
-```
+1. **新闻采集**：从多个科技新闻源收集最新的科技新闻
+2. **内容分析**：使用大语言模型（DeepSeek）对新闻进行深度分析
+3. **日报生成**：整合各个新闻源的内容，生成全球科技日报
+4. **微信发布**：将生成的日报转换为HTML并发布到微信公众号
 
-## 功能特点
+## 环境配置
 
-1. 多源新闻爬取：支持从多个新闻源网站爬取内容
-2. 智能新闻筛选：使用大语言模型从众多新闻中筛选重要内容
-3. 深度分析：对选中的新闻进行深度分析和解读
-4. 综合日报：将多个新闻分析整合为一份完整的科技日报
-5. 模块化设计：各功能模块独立，易于扩展和维护
+### 依赖安装
 
-## 安装与配置
-
-1. 克隆项目
 ```bash
-git clone <repository-url>
-cd news_podcast
+uv pip install -r requirements.txt
 ```
 
-2. 安装依赖
-```bash
-pip install -r requirements.txt
-```
+### 环境变量
 
-3. 配置环境变量
-从`.env.example`复制得到`.env`文件，并填写必要的API密钥等信息：
-```
-ARK_MODEL=<your-llm-model>
-ARK_API_KEY=<your-api-key>
-ARK_BASE_URL=<api-base-url>
-```
+在项目根目录创建一个`.env`文件，配置以下环境变量：
 
-4. 配置新闻源
-编辑`sources.yaml`文件，配置需要爬取的新闻源信息。
+```
+# LLM API配置
+ARK_API_KEY=your_api_key
+ARK_BASE_URL=your_base_url
+ARK_MODEL=your_model_name
+
+# 微信公众号配置
+WECHAT_APPID=your_wechat_appid
+WECHAT_SECRET=your_wechat_secret
+```
 
 ## 使用方法
 
-运行主程序:
-```bash
-python run_podcast.py
-```
-
-这将执行以下步骤:
-1. 从配置的新闻源爬取首页内容
-2. 分析首页提取重要新闻链接
-3. 爬取这些重要新闻的详细内容
-4. 对每篇新闻进行深度分析
-5. 整合所有分析生成一份全球科技日报
-
-结果将保存在以当前日期命名的目录中，如`20250408/global_tech_daily_20250408.md`。
-
-## 运行测试
-
-本项目使用pytest进行测试。有多种方式运行测试：
-
-### 使用pytest命令运行所有测试
+### 运行新闻采集和分析
 
 ```bash
-pytest
+uv run python -m src.news_podcast.main
 ```
 
-### 使用项目提供的测试脚本运行测试
+### 测试微信发布功能
 
 ```bash
-python run_test.py
+uv run pytest tests/test_wechat_publisher.py -v
 ```
 
-### 运行特定测试文件
+## 微信发布功能
+
+### 主要流程
+
+1. 生成全球科技日报Markdown文件后，系统会自动调用微信发布功能
+2. 使用DeepSeek从内容中提取标题和摘要
+3. 将Markdown内容转换为微信公众号兼容的HTML
+4. 获取微信公众号access_token
+5. 创建草稿并发布到微信公众号
+
+### 创建草稿与直接发布
+
+系统支持两种发布模式：
+1. **创建草稿模式**：仅创建草稿，需要手动登录微信公众号后台进行审核发布
+2. **直接发布模式**：创建草稿后立即提交发布，无需手动操作
+
+### 手动发布到微信
+
+#### 仅创建草稿
+
+```python
+from src.news_podcast.wechat_publisher import process_daily_news
+
+# 假设时间戳为20230401
+timestamp = "20230401"
+media_id = process_daily_news(timestamp)
+print(f"成功创建草稿，media_id: {media_id}")
+```
+
+#### 直接发布
+
+```python
+from src.news_podcast.wechat_publisher import process_daily_news
+
+# 假设时间戳为20230401
+timestamp = "20230401"
+publish_id = process_daily_news(timestamp, auto_publish=True)
+print(f"成功发布，publish_id: {publish_id}")
+```
+
+### 使用测试脚本发布现有文件
+
+#### 创建草稿
 
 ```bash
-pytest tests/test_crawler.py
+uv run python test_publish_example.py 20250408/global_tech_daily_20250408.md
 ```
 
-### 运行自定义URL的爬虫测试
+#### 直接发布
 
 ```bash
-python run_test.py --url "https://example.com" --output "example_output.md"
+uv run python test_publish_example.py 20250408/global_tech_daily_20250408.md --publish
 ```
 
-## 新闻源配置说明
+## 目录结构
 
-在`sources.yaml`中，可以按以下格式配置新闻源:
-
-```yaml
-news_dict:
-  - url: "https://news-website.com"
-    output_file: "news_website"
-    strip_line_header: 80  # 去除头部无用行
-    strip_line_bottom: 64  # 去除尾部无用行
-    sample_url: "示例URL格式"
-    sample_url_output: "期望输出格式"
+```
+├── src/
+│   └── news_podcast/
+│       ├── api/
+│       │   ├── llm_client.py      # 大语言模型客户端
+│       │   └── wechat_client.py   # 微信公众号API客户端
+│       ├── crawlers/              # 网页爬虫
+│       ├── models/                # 数据模型
+│       ├── utils/                 # 工具函数
+│       ├── main.py                # 主程序入口
+│       ├── podcast_creator.py     # 播客生成逻辑
+│       └── wechat_publisher.py    # 微信发布模块
+├── tests/                         # 测试文件
+├── .env                           # 环境变量
+├── requirements.txt               # 项目依赖
+└── README.md                      # 项目说明
 ```
 
-## 扩展与定制
+## 注意事项
 
-1. 添加新的新闻源：编辑`sources.yaml`文件
-2. 修改分析提示：调整`news_processor.py`中的prompt
-3. 定制输出格式：修改`podcast_creator.py`中的整合逻辑
-
-## 依赖项
-
-- Python 3.8+
-- OpenAI API
-- crawl4ai
-- dotenv
-- pyyaml
-- pytest 
-- pytest-asyncio 
+1. 微信公众号API有调用频率限制，请确保不要过于频繁地调用
+2. 发布前请确保内容符合微信公众号的规范要求
+3. 需要预先上传一些图片素材到微信公众号后台，用于文章封面图片
+4. 使用直接发布功能时，会绕过微信公众平台的人工审核，请确保内容符合规范，避免违规发布
+5. 系统仅适用于已获得发布权限的认证公众号，非认证公众号只能通过后台手动发布 

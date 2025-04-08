@@ -1,6 +1,12 @@
 [build-system]
-requires = ["setuptools>=42.0", "wheel"]
+requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "news_podcast"
+version = "0.1.0"
+description = "News Podcast项目"
+requires-python = ">=3.8"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -11,8 +17,10 @@ addopts = "-v"
 log_cli = true
 log_cli_level = "INFO"
 asyncio_mode = "auto"
-
-[tool.pytest]
 markers = [
     "asyncio: mark a test as an asyncio coroutine",
-] 
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py38" 
