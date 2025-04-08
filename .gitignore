@@ -1,10 +1,9 @@
-*.md
-*.podcast
-*.origin
 audio_output/
+202*/
 _pycache_
 *.pyc
 *.out
-*.news
 *.wav
 .env
+log/
+.cursor/
