@@ -7,3 +7,5 @@ _pycache_
 .env
 log/
 .cursor/
+.cursorrules
+.cursorignore

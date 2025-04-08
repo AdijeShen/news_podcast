@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=42.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "-v"
+log_cli = true
+log_cli_level = "INFO"
+asyncio_mode = "auto"
+
+[tool.pytest]
+markers = [
+    "asyncio: mark a test as an asyncio coroutine",
+] 
