@@ -6,17 +6,46 @@ import time
 import yaml
 from dataclasses import dataclass
 from typing import List
+from dotenv import load_dotenv
 
 from crawl4ai import *
 from openai import OpenAI
+from crawl4ai.async_crawler_strategy import AsyncPlaywrightCrawlerStrategy
+from crawl4ai.browser_manager import BrowserManager
 
-MODEL = "ep-20250208184831-9p2c6"  # deepseek-v3
-# MODEL = "ep-20250208150109-xl7b5" # deepseek-r1
-API_KEY = os.environ.get("ARK_API_KEY")
-BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
+
+async def patched_async_playwright__crawler_strategy_close(self) -> None:
+    """
+    Close the browser and clean up resources.
+
+    This patch addresses an issue with Playwright instance cleanup where the static instance
+    wasn't being properly reset, leading to issues with multiple crawls.
+
+    Issue: https://github.com/unclecode/crawl4ai/issues/842
+
+    Returns:
+        None
+    """
+    await self.browser_manager.close()
+
+    # Reset the static Playwright instance
+    BrowserManager._playwright_instance = None
+
+
+AsyncPlaywrightCrawlerStrategy.close = patched_async_playwright__crawler_strategy_close
+
+# 加载.env文件
+load_dotenv()
+
+MODEL = "ep-20250328220825-dgw8j"  # deepseek-v3
+API_KEY = os.getenv("ARK_API_KEY")
+BASE_URL = os.getenv("ARK_BASE_URL")
 
 # 设置日志
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(filename)s:%(lineno)d - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 
@@ -39,9 +68,16 @@ async def async_search(search_url, bypass_paywall=False):
     if bypass_paywall:
         search_url = f"https://archive.ph/newest/{search_url}"
 
-    async with AsyncWebCrawler() as crawler:
-        result = await crawler.arun(url=search_url, config=config)
+    try:
+        async with AsyncWebCrawler() as crawler:
+            result = await crawler.arun(
+                url=search_url,
+                config=config,
+            )
         return result.markdown
+    except Exception as e:
+        logger.error(f"爬取{search_url}时出错: {e}")
+        return f"爬取失败: {e}"
 
 
 def chat_with_deepseek(
@@ -114,10 +150,31 @@ def chat_with_deepseek(
 
 async def fetch_news_content(news_urls):
     """并发获取多个新闻内容，同时保留对应链接"""
-    tasks = [async_search(url.strip()) for url in news_urls]
-    results = await asyncio.gather(*tasks)
-    # 返回一个列表，每个元素是 (markdown文本, 对应的url)
-    return list(zip(results, news_urls))
+    results = []
+    for url in news_urls:
+        max_retries = 3
+        retry_count = 0
+        while retry_count < max_retries:
+            try:
+                logger.info(f"尝试获取{url}内容 (尝试 {retry_count + 1}/{max_retries})")
+                content = await async_search(url.strip())
+                if content and not content.startswith("爬取失败"):
+                    results.append((content, url.strip()))
+                    break
+                else:
+                    logger.warning(f"获取{url}内容失败，准备重试")
+                    retry_count += 1
+                    await asyncio.sleep(2)  # 等待2秒后重试
+            except Exception as e:
+                logger.error(f"获取{url}内容时出错: {e}")
+                retry_count += 1
+                await asyncio.sleep(2)  # 等待2秒后重试
+        
+        if retry_count == max_retries:
+            logger.error(f"获取{url}内容失败，已达到最大重试次数")
+            results.append((f"获取失败: 已达到最大重试次数", url.strip()))
+    
+    return results
 
 
 def generate_podcast(news_content: str, source_url: str):
@@ -173,7 +230,7 @@ class NewsTask:
 
 
 async def summarize_news(news_task: NewsTask):
-
+    logger.info(f"开始处理任务: {news_task.output_file}")
     try:
         news_url = news_task.url
         output_file = news_task.output_file
@@ -181,16 +238,25 @@ async def summarize_news(news_task: NewsTask):
         strip_line_bottom = news_task.strip_line_bottom
         sample_url = news_task.sample_url
         sample_url_output = news_task.sample_url_output
+        
         # 获取杂志首页内容
+        logger.info(f"开始获取首页内容: {news_url}")
         content = await async_search(news_url)
+        if not content:
+            logger.error(f"获取首页内容失败: {news_url}")
+            return
+            
+        logger.info(f"成功获取首页内容，长度: {len(content)}")
 
         with open(f"{timestamp}/log/{output_file}.origin", "w", encoding="utf-8") as f:
             f.write(content)
 
         # 去除首页内容中的无用行
         content = "\n".join(content.split("\n")[strip_line_header:-strip_line_bottom])
+        logger.info(f"处理后的首页内容长度: {len(content)}")
 
         # 从首页内容中提取新闻链接
+        logger.info("开始提取新闻链接")
         response = chat_with_deepseek(
             f"""
 作为一位专业的新闻编辑,请从{news_url}的首页内容中,精选5~10条最值得关注的新闻。选择标准:
@@ -214,8 +280,9 @@ async def summarize_news(news_task: NewsTask):
         logger.info(f"提取到的新闻链接: {news_urls}")
 
         # 并发获取新闻内容
-        # 并发获取新闻内容: [(content, url), (content, url), ...]
+        logger.info("开始获取新闻内容")
         fetched_data = await fetch_news_content(news_urls)
+        logger.info(f"成功获取{len(fetched_data)}条新闻内容")
 
         with open(f"{timestamp}/log/{output_file}.news", "w", encoding="utf-8") as f:
             # 把每条新闻 + url 写下来，方便调试
@@ -223,17 +290,24 @@ async def summarize_news(news_task: NewsTask):
                 f.write(f"=== 来源: {nurl}\n{ntext}\n\n---\n\n")
 
         # 生成并存储每条播客：并行执行 generate_podcast
-        thread_pool = ThreadPoolExecutor(max_workers=10)
+        logger.info("开始生成播客内容")
+        thread_pool = ThreadPoolExecutor(max_workers=5)  # 减少并发数
 
         podcast_tasks = []
         for single_content, single_url in fetched_data:
             # 这里进行必要的预处理
             single_content = "\n".join(single_content.split("\n")[strip_line_header:-strip_line_bottom])
-
             podcast_tasks.append(thread_pool.submit(generate_podcast, single_content, single_url))
 
         # 并发执行所有generate_podcast
-        podcasts_result = [task.result() for task in podcast_tasks]
+        podcasts_result = []
+        for task in podcast_tasks:
+            try:
+                result = task.result()
+                podcasts_result.append(result)
+            except Exception as e:
+                logger.error(f"生成播客内容时出错: {e}")
+                podcasts_result.append(f"生成失败: {e}")
 
         # 将执行结果与对应URL组装起来
         podcasts = []
@@ -246,13 +320,13 @@ async def summarize_news(news_task: NewsTask):
             for ptext, purl in podcasts:
                 f.write(f"=== 来源: {purl}\n{ptext}\n\n---\n\n")
 
-        # 整合播客内容（依然可以给大模型一个综合 prompt）
-        # 如果你想在最终的汇总里也带上链接，可以手动拼接
+        # 整合播客内容
+        logger.info("开始整合播客内容")
         aggregator_prompt = f"""
 你是编辑百晓生，请将以下几期公众号内容整合为一期公众号内容。
 
 今天是{timestamp}，请在文稿中提及。
-请一并保留来源链接信息（如文本中已有提及，或重新以“来源: 某某链接”形式挂在该新闻后）。
+请一并保留来源链接信息（如文本中已有提及，或重新以"来源: 某某链接"形式挂在该新闻后）。
 
 以下是多条公众号文本和来源链接:
 """
@@ -260,8 +334,7 @@ async def summarize_news(news_task: NewsTask):
             aggregator_prompt += f"\n【播客{idx}】(来源: {purl})\n{ptext}\n"
 
         aggregator_prompt += """
-(请输出一个整合后的公众号文稿，保持逻辑连贯，语气亲切口语化，覆盖所有事件，不要遗漏链接信息。并为这个公众号想一个吸引人的大标题)
-请发挥想象，另外描述这期公众号的封面可以是什么样的。
+(请输出一个整合后的公众号文稿，保持逻辑连贯，语气亲切口语化，覆盖所有事件，不要遗漏链接信息。并为这个公众号想一个吸引人的大标题)。
         """
 
         summarize = chat_with_deepseek(
@@ -277,14 +350,14 @@ async def summarize_news(news_task: NewsTask):
         logger.info(f"播客内容已保存到{output_file}")
 
     except Exception as e:
-        logger.error(f"程序运行出错: {e}")
+        logger.error(f"程序运行出错: {e}", exc_info=True)
 
 
 async def test_run():
-    m = await async_search("https://www.wsj.com")
+    m = await async_search("https://time.com/7274542/colossal-dire-wolf/")
     # m = await async_search("https://nytimes.com")
 
-    with open("try.md", "w") as f:
+    with open("try.md", "w", encoding="utf-8") as f:
         f.write(m)
 
 
