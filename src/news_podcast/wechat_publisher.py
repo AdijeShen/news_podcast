@@ -126,6 +126,12 @@ def publish_to_wechat(md_file_path: str, author: str = "百晓生", auto_publish
         # 转换为HTML
         html_content = markdown_to_html(md_content)
 
+        # 保存HTML内容到文件
+        html_file_path = md_file_path.replace('.md', '.html')
+        with open(html_file_path, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+        logger.info(f"已保存HTML内容到: {html_file_path}")
+
         # 提取标题和摘要
         title, digest = extract_title_and_summary(html_content)
         logger.info(f"提取的标题和摘要: {title}, {digest}")

@@ -18,6 +18,7 @@ def chat_with_deepseek(
     stream: bool = False,
     max_retries: int = 3,
     current_retry: int = 0,
+    max_tokens: int = 8000,
 ) -> str:
     """
     与DeepSeek API进行对话，支持流式输出
@@ -47,7 +48,7 @@ def chat_with_deepseek(
     messages.append({"role": "user", "content": prompt})
 
     try:
-        response = client.chat.completions.create(model=model, messages=messages, stream=stream)
+        response = client.chat.completions.create(model=model, messages=messages, stream=stream, max_tokens=max_tokens)
         full_response = ""
 
         if stream:
