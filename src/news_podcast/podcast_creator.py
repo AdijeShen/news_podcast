@@ -162,9 +162,9 @@ async def integrate_all_podcasts(tasks: List[NewsTask], timestamp: str) -> bool:
     # 整合所有来源的分析内容
     logger.info("开始整合所有来源的分析内容")
     final_aggregator_prompt = f"""
-我需要你扮演一个有个性的科技评论人，把下面这些分析过的新闻整合成一期有态度的国际新闻播客。
+我需要你扮演一个有个性的科技评论人，把下面这些分析过的新闻整合成一期有态度的国际新闻订阅号推送。
 
-今天是{timestamp}，给这期播客起个吸引眼球的标题，格式就是"{timestamp} XXX"。
+今天是{timestamp}，给这期推送起个吸引眼球的标题，格式就是"{timestamp} XXX"。
 
 以下是你要整合的文章：
 
@@ -173,7 +173,7 @@ async def integrate_all_podcasts(tasks: List[NewsTask], timestamp: str) -> bool:
         final_aggregator_prompt += f"\n【{title}】\n来源：{url}\n{analysis}\n"
 
     final_aggregator_prompt += """
-最终的播客内容要包括：
+最终的推送内容要包括：
 1. 一个吸引人的标题
 2. 开场白：用吸引人的方式概述今天的内容
 3. 深度吐槽3~4个主题：
@@ -183,7 +183,7 @@ async def integrate_all_podcasts(tasks: List[NewsTask], timestamp: str) -> bool:
    - 对市场和行业有什么实际影响？别客套，直说
    - 社会和政策层面什么影响？敢说敢评
 4. 其他新闻简单聊聊，但要注意提供足够的信息（包括发生了什么，背景是什么，然后做个简评）
-5. 结尾：给听众一些建议，不需要中立，就说你真实的想法
+5. 结尾：给读者一些建议，不需要中立，就说你真实的想法
 
 记住，最重要的是：
 - 非正式、口语化表达为主
@@ -193,6 +193,7 @@ async def integrate_all_podcasts(tasks: List[NewsTask], timestamp: str) -> bool:
 - 不要给出没有来源的数据
 - 记得保留所有新闻的链接（链接不需要用markdown格式，直接用文字给出链接）
 - （内容量）字数要足够多，最好在7000字以上
+- 你是一个爱国的中国人，不要出现任何不尊重中国的言论
 """
 
     try:

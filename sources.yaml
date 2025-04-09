@@ -1,10 +1,4 @@
 news_dict:
-  # - url: "https://nytimes.com"
-  #   output_file: "nytimes"
-  #   strip_line_header: 661
-  #   sample_url: "https://times.com/<https:/www.nytimes.com/interactive/2025/01/08/weather/los-angeles-fire-maps-california.html>"
-  #   sample_url_output: "https://www.nytimes.com/interactive/2025/01/08/weather/los-angeles-fire-maps-california.html"
-
   - url: "https://time.com"
     output_file: "time"
     strip_line_header: 80
@@ -19,16 +13,44 @@ news_dict:
     sample_url: "https://www.economist.com/</united-states/2025/01/09/americas-bet-on-industrial-policy-starts-to-pay-off-for-semiconductors>"
     sample_url_output: "https://www.economist.com/united-states/2025/01/09/americas-bet-on-industrial-policy-starts-to-pay-off-for-semiconductors"
 
-  - url: "https://www.ft.com/"
-    output_file: "ft"
-    strip_line_header: 191
-    strip_line_bottom: 161
-    sample_url: "https://www.ft.com/</content/a973a98d-ba82-41fc-89f9-d34097f44c0b>"
-    sample_url_output: "https://www.ft.com/content/a973a98d-ba82-41fc-89f9-d34097f44c0b"
-
   - url: "https://www.bbc.com/"
     output_file: "bbc"
     strip_line_header: 31
     strip_line_bottom: 31
     sample_url: "https://www.bbc.com/</news/articles/c20g7705re3o>"
     sample_url_output: "https://www.bbc.com/news/articles/c20g7705re3o"
+
+  - url: "https://www.wired.com/"
+    output_file: "wired"
+    strip_line_header: 43
+    strip_line_bottom: 53
+    sample_url: "https://www.wired.com/story/elon-musk-government-young-engineers/"
+    sample_url_output: "https://www.wired.com/story/elon-musk-government-young-engineers/"
+
+  - url: "https://www.cnn.com/"
+    output_file: "cnn"
+    strip_line_header: 190
+    strip_line_bottom: 146
+    sample_url: "https://www.cnn.com/2025/04/08/europe/ukraine-says-captured-chinese-nationals-russia-intl/index.html"
+    sample_url_output: "https://www.cnn.com/2025/04/08/europe/ukraine-says-captured-chinese-nationals-russia-intl/index.html"
+
+  - url: "https://www.reuters.com/"
+    output_file: "reuters"
+    strip_line_header: 112
+    strip_line_bottom: 126
+    sample_url: "https://www.reuters.com/world/trumps-latest-tariffs-loom-set-deepen-global-trade-war-2025-04-09/"
+    sample_url_output: "https://www.reuters.com/world/trumps-latest-tariffs-loom-set-deepen-global-trade-war-2025-04-09/"
+
+# - url: "https://nytimes.com"
+#   output_file: "nytimes"
+#   strip_line_header: 628
+#   strip_line_bottom: 42
+#   sample_url: "https://www.nytimes.com/2025/04/09/opinion/us-uk-special-relationship.html"
+#   sample_url_output: "https://www.nytimes.com/2025/04/09/opinion/us-uk-special-relationship.html"
+
+# - url: "https://www.ft.com/"
+#   output_file: "ft"
+#   strip_line_header: 191
+#   strip_line_bottom: 161
+#   sample_url: "https://www.ft.com/</content/a973a98d-ba82-41fc-89f9-d34097f44c0b>"
+#   sample_url_output: "https://www.ft.com/content/a973a98d-ba82-41fc-89f9-d34097f44c0b"

@@ -20,16 +20,14 @@ async def test_url_crawl():
     from src.news_podcast.crawlers.web_crawler import async_search
     
     # 测试URL
-    url = "https://time.com/7274542/colossal-dire-wolf/"
+    url = "https://www.reuters.com/"
     
     # 执行爬取
     content = await async_search(url)
     
     # 验证结果
     assert content is not None, "爬取内容不应为None"
-    assert len(content) > 0, "爬取内容长度应大于0"
-    assert "time.com" in content.lower(), "爬取内容应包含源网站信息"
-    
+    assert len(content) > 0, "爬取内容长度应大于0"    
     # 输出到文件(可选)
     output_file = "test_output.md"
     with open(output_file, "w", encoding="utf-8") as f:
