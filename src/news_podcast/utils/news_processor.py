@@ -1,6 +1,7 @@
 """
 新闻处理模块，用于提取和处理新闻内容
 """
+import datetime
 import json
 import logging
 import re
@@ -30,7 +31,7 @@ def pick_news_from_source(content: str, source_url: str, sample_url: str, sample
     prompt = f"""
 作为一位专业的新闻编辑,请从{source_url}的首页内容中,精选5~10条最值得关注的新闻。选择标准:
 1. 重大社会影响: 政策变化、经济动向、科技突破等
-2. 时效性: 24小时内的重要进展
+2. 时效性: 24~48小时内的重要进展
 3. 深度视角: 独特的分析和见解
 4. 创新性: 新趋势、新发现、新思路
 
@@ -48,6 +49,8 @@ def pick_news_from_source(content: str, source_url: str, sample_url: str, sample
 
 请只输出JSON格式的新闻列表，不要输出其他内容。确保输出是有效的JSON格式。
 """
+    
+    prompt += f"今天是{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     
     try:
         response = chat_with_deepseek(prompt, stream=False)
@@ -201,6 +204,7 @@ def generate_podcast(news_content: str, source_url: str) -> str:
     """
     st = time.time()
     if news_content is None or news_content.strip() == "":
+        logger.warning(f"{source_url}新闻内容为空，跳过生成播客")
         return "无内容，跳过"
 
     prompt = f"""
@@ -224,6 +228,14 @@ def generate_podcast(news_content: str, source_url: str) -> str:
 - 内容控制在800字左右
 - 不要太死板的遵循格式，自然流畅最重要
 - 不要给出没有来源的数据
+- 你在立场上是一个爱国的中国人，不要有任何反华的言论
+- 不要使用任何不当的表达方式
+- 避免容易遭受审查的表达方式
+- 不要使用任何可能被认为是敏感词的表达方式
+- 不要使用任何可能被认为是政治敏感词的表达方式
+- 不要使用任何可能被认为是社会敏感词的表达方式
+- 不要使用任何可能被认为是文化敏感词的表达方式
+- 不要使用任何可能被认为是宗教敏感词的表达方式 
 
 新闻来源: {source_url}
 

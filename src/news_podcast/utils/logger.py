@@ -21,8 +21,7 @@ def setup_logging(level: int = logging.INFO,
     """
     # 默认日志格式
     if log_format is None:
-        log_format = '%(asctime)s - %(name)s - %(filename)s:%(lineno)d - %(levelname)s - %(message)s'
-    
+        log_format = '[%(asctime)s,%(filename)s:%(lineno)d]: %(message)s'
     # 配置根日志记录器
     logging.basicConfig(
         level=level,

@@ -61,7 +61,7 @@ def chat_with_deepseek(
         else:
             full_response = response.choices[0].message.content
         
-        logger.info(f"Token使用量: {response.usage}")
+        logger.info(f"Token使用量: 输出{response.usage.prompt_tokens}，输入{response.usage.completion_tokens}")
         
         # 如果响应为空且未超过最大重试次数，则重试
         if not full_response and current_retry < max_retries:

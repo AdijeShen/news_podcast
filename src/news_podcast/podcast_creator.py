@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import time
+import datetime
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Tuple, Dict, Any, Optional
 
@@ -83,6 +84,55 @@ async def scan_news(news_task: NewsTask, timestamp: str) -> bool:
         return False
 
 
+def remove_duplicate_news(current_news: List[Dict[str, Any]], timestamp: str) -> List[Dict[str, Any]]:
+    """
+    从当前新闻列表中移除与过去7天中重复的新闻
+    
+    参数:
+        current_news: 当前选择的新闻列表
+        timestamp: 当前时间戳，格式为YYYYMMDD
+        
+    返回:
+        List[Dict[str, Any]]: 去除重复后的新闻列表
+    """
+    # 获取过去7天的日期
+    try:
+        current_date = datetime.datetime.strptime(timestamp, "%Y%m%d")
+        past_dates = [(current_date - datetime.timedelta(days=i)).strftime("%Y%m%d") 
+                      for i in range(1, 8)]  # 过去7天
+    except ValueError:
+        logger.error(f"时间戳格式错误: {timestamp}，应为YYYYMMDD格式")
+        return current_news
+    
+    # 收集过去7天的所有新闻URL
+    past_news_urls = set()
+    for past_date in past_dates:
+        past_news_path = f"{past_date}/log/selected_news.json"
+        if os.path.exists(past_news_path):
+            try:
+                with open(past_news_path, "r", encoding="utf-8") as f:
+                    past_news = json.load(f)
+                    for news in past_news:
+                        if "url" in news:
+                            past_news_urls.add(news["url"])
+                    logger.info(f"从{past_date}加载了{len(past_news)}条新闻")
+            except Exception as e:
+                logger.warning(f"读取{past_date}的新闻时出错: {e}")
+    
+    logger.info(f"从过去7天收集了{len(past_news_urls)}个独特的新闻URL")
+    
+    # 过滤掉已存在于过去7天的新闻
+    filtered_news = []
+    for news in current_news:
+        if "url" in news and news["url"] not in past_news_urls:
+            filtered_news.append(news)
+        elif "url" in news and news["url"] in past_news_urls:
+            logger.info(f"过滤掉重复新闻: {news.get('title', '未知标题')} - {news['url']}")
+    
+    logger.info(f"过滤前: {len(current_news)}条新闻，过滤后: {len(filtered_news)}条新闻")
+    return filtered_news
+
+
 async def integrate_all_podcasts(tasks: List[NewsTask], timestamp: str) -> bool:
     """
     整合所有来源的新闻分析为一个完整的全球科技日报
@@ -113,6 +163,13 @@ async def integrate_all_podcasts(tasks: List[NewsTask], timestamp: str) -> bool:
     
     if not all_news_lists:
         logger.warning("没有找到任何新闻列表")
+        return False
+    
+    # 与过去7天的新闻进行比较，去掉重复的新闻
+    all_news_lists = remove_duplicate_news(all_news_lists, timestamp)
+    
+    if not all_news_lists:
+        logger.warning("去重后没有任何新闻剩余")
         return False
     
     # 从所有新闻中精选重要新闻
