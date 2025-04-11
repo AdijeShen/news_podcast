@@ -257,7 +257,7 @@ async def integrate_all_podcasts(tasks: List[NewsTask], timestamp: str) -> bool:
         final_summary = chat_with_deepseek(
             final_aggregator_prompt,
             stream=False,
-            max_tokens=30000,
+            max_tokens=50000,
         )
 
         # 保存最终整合的日报

@@ -9,6 +9,8 @@ from openai import OpenAI
 # 设置日志
 logger = logging.getLogger(__name__)
 
+total_tokens = 0
+
 def chat_with_deepseek(
     prompt: str,
     system_message: Optional[str] = None,
@@ -18,7 +20,7 @@ def chat_with_deepseek(
     stream: bool = False,
     max_retries: int = 3,
     current_retry: int = 0,
-    max_tokens: int = 8000,
+    max_tokens: int = 15000,
 ) -> str:
     """
     与DeepSeek API进行对话，支持流式输出
@@ -60,8 +62,10 @@ def chat_with_deepseek(
             print()  # Final newline
         else:
             full_response = response.choices[0].message.content
-        
-        logger.info(f"Token使用量: 输出{response.usage.prompt_tokens}，输入{response.usage.completion_tokens}")
+        global total_tokens
+        total_tokens += response.usage.prompt_tokens + response.usage.completion_tokens
+        logger.info(f"Token使用量: 输入{response.usage.prompt_tokens}，输出{response.usage.completion_tokens}，总使用量{total_tokens}")
+        logger.info(f"得到响应: {full_response}")
         
         # 如果响应为空且未超过最大重试次数，则重试
         if not full_response and current_retry < max_retries:
