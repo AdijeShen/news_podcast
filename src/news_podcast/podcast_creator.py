@@ -234,7 +234,7 @@ async def integrate_all_podcasts(tasks: List[NewsTask], timestamp: str) -> bool:
 1. 一个吸引人的标题
 2. 开场白：用吸引人的方式概述今天的内容
 3. 深度吐槽3~4个主题：
-   - 到底发生了什么事情（要提供足够的信息）。
+   - 到底发生了什么事情（要提供足够的信息，这个篇幅可以大一些，不要怕啰嗦）。
    - 给不了解的听众解释一下这件事情的背景。
    - 这东西到底靠不靠谱？亮点和缺陷在哪？（如果适用）
    - 对市场和行业有什么实际影响？别客套，直说
@@ -257,7 +257,7 @@ async def integrate_all_podcasts(tasks: List[NewsTask], timestamp: str) -> bool:
         final_summary = chat_with_deepseek(
             final_aggregator_prompt,
             stream=False,
-            max_tokens=50000,
+            max_tokens=16384,
         )
 
         # 保存最终整合的日报

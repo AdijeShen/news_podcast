@@ -34,6 +34,26 @@ async def main(config_path: str = "sources.yaml", timestamp: Optional[str] = Non
     if not os.path.exists(timestamp):
         os.makedirs(timestamp)
     
+    # 检查今天是否已经生成过播客
+    def check_already_generated(timestamp: str) -> bool:
+        """
+        检查指定日期的播客是否已经生成
+        
+        参数:
+            timestamp: 日期时间戳
+            
+        返回:
+            bool: 如果已生成返回True，否则返回False
+        """
+        target_file = f"global_tech_daily_{timestamp}.html"
+        target_path = os.path.join(timestamp, target_file)
+        return os.path.exists(target_path)
+    
+    # 如果已经生成过，则直接返回
+    if check_already_generated(timestamp):
+        print(f"今日({timestamp})播客已经生成，跳过处理")
+        return
+
     # 创建日志目录
     log_dir = f"{timestamp}/log"
     if not os.path.exists(log_dir):
