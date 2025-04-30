@@ -49,19 +49,49 @@ async def async_search(search_url: str, bypass_paywall: bool = False) -> str:
         magic=True  # 自动处理弹窗
     )
     
-    if bypass_paywall:
-        search_url = f"https://archive.ph/newest/{search_url}"
+    max_retries = 3
+    retry_count = 0
+    
+    while retry_count < max_retries:
+        current_url = search_url
+        if bypass_paywall:
+            current_url = f"https://archive.ph/newest/{search_url}"
 
-    try:
-        async with AsyncWebCrawler() as crawler:
-            result = await crawler.arun(
-                url=search_url,
-                config=config,
-            )
-        return result.markdown
-    except Exception as e:
-        logger.error(f"爬取{search_url}时出错: {e}")
-        return f"爬取失败: {e}"
+        try:
+            async with AsyncWebCrawler() as crawler:
+                result = await crawler.arun(
+                    url=current_url,
+                    config=config,
+                )
+            
+            if result.markdown and len(result.markdown.strip()) > 10:
+                return result.markdown
+            else:
+                logger.warning(f"爬取{current_url}返回内容为空，尝试重新爬取 ({retry_count + 1}/{max_retries})")
+                retry_count += 1
+                import asyncio
+                await asyncio.sleep(2)  # 等待2秒后重试
+        except Exception as e:
+            logger.error(f"爬取{current_url}时出错: {e}，尝试重新爬取 ({retry_count + 1}/{max_retries})")
+            retry_count += 1
+            import asyncio
+            await asyncio.sleep(2)  # 等待2秒后重试
+    
+    # 如果常规尝试都失败，尝试使用bypass_paywall模式
+    if not bypass_paywall:
+        logger.info(f"常规爬取{search_url}失败，尝试使用bypass_paywall模式")
+        try:
+            bypass_url = f"https://archive.ph/newest/{search_url}"
+            async with AsyncWebCrawler() as crawler:
+                result = await crawler.arun(
+                    url=bypass_url,
+                    config=config,
+                )
+            return result.markdown if result.markdown else f"爬取失败: 内容为空"
+        except Exception as e:
+            logger.error(f"使用bypass_paywall爬取{search_url}时出错: {e}")
+    
+    return f"爬取失败: 已达到最大重试次数"
 
 async def fetch_news_content(news_urls: List[str]) -> List[Tuple[str, str]]:
     """

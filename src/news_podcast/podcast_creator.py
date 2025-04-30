@@ -202,17 +202,6 @@ async def integrate_all_podcasts(tasks: List[NewsTask], timestamp: str) -> bool:
             processed_content = "\n".join(content.split("\n")[task.strip_line_header:-task.strip_line_bottom])
             logger.info(f"处理内容: 原始长度 {len(content)} -> 处理后长度 {len(processed_content)}")
             
-            # 如果处理后内容为空，尝试重试
-            retry_count = 0
-            max_retries = 3
-            while len(processed_content.strip()) < 10 and retry_count < max_retries:
-                retry_count += 1
-                logger.warning(f"处理后内容为空，正在进行第{retry_count}次重试...")
-                # 调整截取范围
-                content = await async_search(url)
-                processed_content = "\n".join(content.split("\n")[task.strip_line_header:-task.strip_line_bottom])
-                logger.info(f"重试处理内容: 原始长度 {len(content)} -> 处理后长度 {len(processed_content)}")
-            
             # 生成分析
             analysis = generate_podcast(processed_content, url)
         else:
