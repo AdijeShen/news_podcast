@@ -202,6 +202,17 @@ async def integrate_all_podcasts(tasks: List[NewsTask], timestamp: str) -> bool:
             processed_content = "\n".join(content.split("\n")[task.strip_line_header:-task.strip_line_bottom])
             logger.info(f"处理内容: 原始长度 {len(content)} -> 处理后长度 {len(processed_content)}")
             
+            # 如果处理后内容为空，尝试重试
+            retry_count = 0
+            max_retries = 3
+            while len(processed_content.strip()) < 10 and retry_count < max_retries:
+                retry_count += 1
+                logger.warning(f"处理后内容为空，正在进行第{retry_count}次重试...")
+                # 调整截取范围
+                content = await async_search(url)
+                processed_content = "\n".join(content.split("\n")[task.strip_line_header:-task.strip_line_bottom])
+                logger.info(f"重试处理内容: 原始长度 {len(content)} -> 处理后长度 {len(processed_content)}")
+            
             # 生成分析
             analysis = generate_podcast(processed_content, url)
         else:
@@ -215,6 +226,32 @@ async def integrate_all_podcasts(tasks: List[NewsTask], timestamp: str) -> bool:
     with open(f"{timestamp}/log/analyses.json", "w", encoding="utf-8") as f:
         analyses_data = [{"title": title, "url": url, "analysis": analysis} for title, analysis, url in analyses]
         json.dump(analyses_data, f, ensure_ascii=False, indent=2)
+    
+    # 清理空条目：找出分析结果为"无内容，跳过"的条目，从selected_news中删除
+    empty_indices = []
+    for i, analysis_data in enumerate(analyses_data):
+        if analysis_data.get("analysis") == "无内容，跳过":
+            empty_indices.append(i)
+    
+    # 如果有空条目，从selected_news中删除对应条目并重新保存
+    if empty_indices:
+        logger.info(f"发现{len(empty_indices)}条无内容的新闻，将从selected_news中删除")
+        # 读取已保存的selected_news
+        with open(f"{timestamp}/log/selected_news.json", "r", encoding="utf-8") as f:
+            selected_news = json.load(f)
+        
+        # 从后往前删除，避免索引变化
+        for index in sorted(empty_indices, reverse=True):
+            if index < len(selected_news):
+                logger.info(f"删除无内容新闻: {selected_news[index].get('title', '未知标题')} - {selected_news[index].get('url', '未知URL')}")
+                del selected_news[index]
+        
+        # 重新保存selected_news
+        with open(f"{timestamp}/log/selected_news.json", "w", encoding="utf-8") as f:
+            json.dump(selected_news, f, ensure_ascii=False, indent=2)
+        
+        # 更新analyses列表，移除空条目
+        analyses = [analysis for i, analysis in enumerate(analyses) if i not in empty_indices]
     
     # 整合所有来源的分析内容
     logger.info("开始整合所有来源的分析内容")
@@ -232,7 +269,7 @@ async def integrate_all_podcasts(tasks: List[NewsTask], timestamp: str) -> bool:
     final_aggregator_prompt += """
 最终的推送内容要包括：
 1. 一个吸引人的标题
-2. 开场白：用吸引人的方式概述今天的内容，语气要平静，内容可以讽刺（也就是不要出现今天的新闻是在太魔幻啦这样的怪诞语气）
+2. 开场白：用吸引人的方式概述今天的内容，语气要平静，内容可以讽刺（不要出现“魔幻现实主义”这样夸张的语气，大新闻每天都有，不要太夸张，显得很没见识的样子）
 3. 深度吐槽3~4个主题：
    - 到底发生了什么事情（要提供足够的信息，这个篇幅可以大一些，不要怕啰嗦）。
    - 给不了解的听众解释一下这件事情的背景。
